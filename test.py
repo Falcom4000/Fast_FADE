@@ -1,28 +1,25 @@
 import FADE_Release_Python2
 import os
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
+from tqdm import tqdm
 
 mydir = './pngs'
 result_dir = './result'
-
-# Create result directory if it doesn't exist
-if not os.path.exists(result_dir):
-    os.makedirs(result_dir)
-
 def process_subdir(subdir):
     start_time = time.time()
     subdir_path = os.path.join(mydir, subdir)
-    print("Start processing {s}", str(subdir_path))
-    # Initialize FADE for this thread
+    print(f"Start processing {subdir_path}")
+    
+    # Initialize FADE for this process
     my_FADE = FADE_Release_Python2.initialize()
     
     # Get all files in the subdirectory
     files = os.listdir(subdir_path)
     results = []
     
-    # Process each file
-    for filename in files:
+    # Process each file with progress bar
+    for filename in tqdm(files, desc=f"Processing {subdir}", position=0, leave=True):
         filepath = os.path.join(subdir_path, filename)
         if os.path.isfile(filepath):  # Make sure it's a file, not a directory
             yOut = my_FADE.FADE(filepath)
@@ -50,13 +47,17 @@ def process_subdir(subdir):
     
     return subdir, len(results), processing_time
 
-# Get all subdirectories in the main directory
-subdirs = [d for d in os.listdir(mydir) if os.path.isdir(os.path.join(mydir, d))]
+if __name__ == '__main__':
 
-# Process subdirectories in parallel using thread pool
-with ThreadPoolExecutor(max_workers=7) as executor:
-    futures = [executor.submit(process_subdir, subdir) for subdir in subdirs]
-    
-    # Wait for all tasks to complete
-    for future in futures:
-        subdir, file_count, proc_time = future.result()
+    # Create result directory if it doesn't exist
+    if not os.path.exists(result_dir):
+        os.makedirs(result_dir)
+        # Get all subdirectories in the main directory
+    subdirs = [d for d in os.listdir(mydir) if os.path.isdir(os.path.join(mydir, d))]
+    # Process subdirectories in parallel using process pool
+    with ProcessPoolExecutor(max_workers=7) as executor:
+        futures = [executor.submit(process_subdir, subdir) for subdir in subdirs]
+        
+        # Wait for all tasks to complete
+        for future in futures:
+            subdir, file_count, proc_time = future.result()
