@@ -1,6 +1,7 @@
 import FADE_Release_Python2
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 mydir = './pngs'
 result_dir = './result'
@@ -9,14 +10,12 @@ result_dir = './result'
 if not os.path.exists(result_dir):
     os.makedirs(result_dir)
 
-my_FADE_Release_Python2 = FADE_Release_Python2.initialize()
-
-# Get all subdirectories in the main directory
-subdirs = [d for d in os.listdir(mydir) if os.path.isdir(os.path.join(mydir, d))]
-
-for subdir in subdirs:
+def process_subdir(subdir):
     start_time = time.time()
     subdir_path = os.path.join(mydir, subdir)
+    print("Start processing {s}", str(subdir_path))
+    # Initialize FADE for this thread
+    my_FADE = FADE_Release_Python2.initialize()
     
     # Get all files in the subdirectory
     files = os.listdir(subdir_path)
@@ -26,7 +25,7 @@ for subdir in subdirs:
     for filename in files:
         filepath = os.path.join(subdir_path, filename)
         if os.path.isfile(filepath):  # Make sure it's a file, not a directory
-            yOut = my_FADE_Release_Python2.FADE(filepath)
+            yOut = my_FADE.FADE(filepath)
             results.append((filename, yOut))
     
     # Save results to file
@@ -45,5 +44,19 @@ for subdir in subdirs:
         print(f"Directory '{subdir}': {len(results)} files processed in {processing_time:.2f}s, mean result: {mean}")
     else:
         print(f"Directory '{subdir}': No files processed in {processing_time:.2f}s")
+    
+    # Terminate FADE for this thread
+    my_FADE.terminate()
+    
+    return subdir, len(results), processing_time
 
-my_FADE_Release_Python2.terminate()
+# Get all subdirectories in the main directory
+subdirs = [d for d in os.listdir(mydir) if os.path.isdir(os.path.join(mydir, d))]
+
+# Process subdirectories in parallel using thread pool
+with ThreadPoolExecutor(max_workers=7) as executor:
+    futures = [executor.submit(process_subdir, subdir) for subdir in subdirs]
+    
+    # Wait for all tasks to complete
+    for future in futures:
+        subdir, file_count, proc_time = future.result()
