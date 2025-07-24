@@ -6,7 +6,8 @@ from tqdm import tqdm
 
 mydir = './pngs'
 result_dir = './result'
-def process_subdir(subdir):
+def process_subdir(args):
+    subdir, process_index = args
     start_time = time.time()
     subdir_path = os.path.join(mydir, subdir)
     print(f"Start processing {subdir_path}")
@@ -18,8 +19,13 @@ def process_subdir(subdir):
     files = os.listdir(subdir_path)
     results = []
     
-    # Process each file with progress bar
-    for filename in tqdm(files, desc=f"Processing {subdir}", position=0, leave=True):
+    # Process each file with progress bar only for first process
+    if process_index == 0:
+        iterator = tqdm(files, desc=f"Processing {subdir}", position=0, leave=False)
+    else:
+        iterator = files
+    
+    for filename in iterator:
         filepath = os.path.join(subdir_path, filename)
         if os.path.isfile(filepath):  # Make sure it's a file, not a directory
             yOut = my_FADE.FADE(filepath)
@@ -56,7 +62,7 @@ if __name__ == '__main__':
     subdirs = [d for d in os.listdir(mydir) if os.path.isdir(os.path.join(mydir, d))]
     # Process subdirectories in parallel using process pool
     with ProcessPoolExecutor(max_workers=7) as executor:
-        futures = [executor.submit(process_subdir, subdir) for subdir in subdirs]
+        futures = [executor.submit(process_subdir, (subdir, i)) for i, subdir in enumerate(subdirs)]
         
         # Wait for all tasks to complete
         for future in futures:
